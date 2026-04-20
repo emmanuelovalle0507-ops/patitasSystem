@@ -1,0 +1,236 @@
+// PatiTas - Modelo de datos
+// PostGIS se habilita en migration.sql; Prisma no lo modela directamente
+// por eso usamos lat/lng como Float y una columna geography mantenida por trigger.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [postgis]
+}
+
+enum PetKind {
+  DOG
+  CAT
+  BIRD
+  REPTILE
+  RODENT
+  OTHER
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum PostKind {
+  LOST
+  COMMUNITY
+}
+
+enum PostStatus {
+  LOST
+  FOUND
+  IN_PROGRESS
+  ACTIVE
+}
+
+enum NotificationType {
+  NEW_LOST_NEARBY
+  COMMENT
+  LIKE
+  STATUS_CHANGE
+  SYSTEM
+}
+
+model User {
+  id            String    @id @default(cuid())
+  supabaseId    String    @unique
+  email         String    @unique
+  name          String
+  avatarUrl     String?
+  phone         String?
+  whatsapp      String?
+  showPhone     Boolean   @default(false)
+  showWhatsapp  Boolean   @default(true)
+  showEmail     Boolean   @default(false)
+  favoritePets  PetKind[] @default([])
+  role          Role      @default(USER)
+
+  notifLat      Float?
+  notifLng      Float?
+  notifRadiusKm Int       @default(3)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  pets              Pet[]
+  posts             Post[]
+  comments          Comment[]
+  likes             Like[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+  posters           Poster[]
+  aiThreads         AiThread[]
+  sightings         Sighting[]
+}
+
+model Pet {
+  id       String  @id @default(cuid())
+  name     String
+  kind     PetKind
+  breed    String?
+  color    String?
+  ageYears Float?
+  ownerId  String
+  owner    User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  posts    Post[]
+  createdAt DateTime @default(now())
+}
+
+model Post {
+  id          String      @id @default(cuid())
+  kind        PostKind
+  status      PostStatus
+  authorId    String
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  petId       String?
+  pet         Pet?        @relation(fields: [petId], references: [id])
+  title       String
+  description String
+
+  lat         Float?
+  lng         Float?
+  areaLabel   String?
+
+  lostAt      DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  /// Plan de búsqueda generado por IA (markdown). Se genera una vez y se regenera bajo demanda.
+  searchPlan    String?   @db.Text
+  searchPlanAt  DateTime?
+  /// Crítica del cartel generada por IA (json serializado).
+  posterCritique String?  @db.Text
+
+  images        PostImage[]
+  comments      Comment[]
+  likes         Like[]
+  posters       Poster[]
+  notifications Notification[]
+  sightings     Sighting[]
+
+  @@index([kind, status, createdAt])
+  @@index([authorId])
+}
+
+model PostImage {
+  id         String @id @default(cuid())
+  postId     String
+  post       Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url        String
+  publicId   String
+  width      Int?
+  height     Int?
+  moderation Json?
+  createdAt  DateTime @default(now())
+  @@index([postId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  @@index([postId, createdAt])
+}
+
+model Like {
+  id     String @id @default(cuid())
+  postId String
+  userId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([postId, userId])
+}
+
+model Sighting {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  lat       Float
+  lng       Float
+  note      String?
+  photoUrl  String?
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([postId])
+}
+
+model Poster {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  template  String   // classic | bold | minimal
+  pdfUrl    String?
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  postId    String?
+  type      NotificationType
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?            @relation(fields: [postId], references: [id], onDelete: SetNull)
+  @@index([userId, readAt, createdAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model AiThread {
+  id        String      @id @default(cuid())
+  userId    String
+  title     String?
+  createdAt DateTime    @default(now())
+  messages  AiMessage[]
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+}
+
+model AiMessage {
+  id        String   @id @default(cuid())
+  threadId  String
+  role      String   // user | assistant | system
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  thread    AiThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  @@index([threadId, createdAt])
+}
