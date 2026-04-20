@@ -39,7 +39,6 @@ export default function RegisterPage() {
 
   const pwScore = scorePassword(password);
   const pwMismatch = confirm.length > 0 && confirm !== password;
-  const canSubmit = name.trim().length >= 2 && email.includes("@") && pwScore >= 2 && !pwMismatch && accept;
 
   function translateError(message: string): string {
     const m = message.toLowerCase();
@@ -60,12 +59,24 @@ export default function RegisterPage() {
     if (loading) return;
     setError(null);
 
+    if (name.trim().length < 2) {
+      setError("Escribe tu nombre (al menos 2 letras).");
+      return;
+    }
+    if (!email.includes("@")) {
+      setError("Ingresa un correo válido.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
     if (pwScore < 2) {
       setError("La contraseña es muy débil. Añade mayúsculas, números o un símbolo.");
       return;
     }
-    if (pwMismatch) {
-      setError("Las contraseñas no coinciden.");
+    if (pwMismatch || confirm.length === 0) {
+      setError("Confirma tu contraseña — debe coincidir con la anterior.");
       return;
     }
     if (!accept) {
@@ -282,7 +293,7 @@ export default function RegisterPage() {
 
         <Button
           type="submit"
-          disabled={loading || googleLoading || !canSubmit}
+          disabled={loading || googleLoading}
           className="w-full h-11 gap-2 bg-gradient-to-r from-brand-500 to-orange-500 hover:from-brand-600 hover:to-orange-600 text-white font-semibold shadow-md shadow-brand-500/20"
         >
           {loading ? (
