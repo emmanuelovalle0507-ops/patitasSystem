@@ -14,6 +14,7 @@ import { ContactOwnerModal } from "@/components/post/contact-owner-modal";
 import { ShareModal } from "@/components/post/share-modal";
 import { SearchPlanCard } from "@/components/post/search-plan-card";
 import { OwnerActionBar } from "@/components/post/owner-action-bar";
+import { OwnerContactPreview } from "@/components/post/owner-contact-preview";
 import { MapPin, Calendar, ArrowLeft, Heart, MessageSquare, Share2 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -180,11 +181,14 @@ export default async function PostDetailPage({ params }: Params) {
         </div>
       )}
 
-      {/* Barra para el dueño — like + compartir rápido (las acciones principales ya están arriba) */}
+      {/* Vista para el dueño — datos de contacto visibles + like */}
       {isOwner && (
-        <div className="flex flex-wrap items-center gap-2">
-          {me && <LikeButton postId={post.id} initialLiked={liked} initialCount={post._count.likes} />}
-        </div>
+        <>
+          <OwnerContactPreview author={post.author} />
+          <div className="flex flex-wrap items-center gap-2">
+            {me && <LikeButton postId={post.id} initialLiked={liked} initialCount={post._count.likes} />}
+          </div>
+        </>
       )}
 
       {/* Comentarios */}
